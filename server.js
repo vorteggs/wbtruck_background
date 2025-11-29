@@ -4,6 +4,8 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
+const https = require('https');
+const http = require('http');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -12,7 +14,13 @@ const upload = multer({ dest: 'uploads/' });
 app.use(cors());
 app.use(express.json());
 
-// Настройка почтового транспорта для Яндекс (хардкод)
+// Загрузка SSL сертификатов
+const sslOptions = {
+    key: fs.readFileSync(path.join(__dirname, 'ssl', 'server.key')),
+    cert: fs.readFileSync(path.join(__dirname, 'ssl', 'server.cert'))
+};
+
+// Настройка почтового транспорта для Яндекс
 const transporter = nodemailer.createTransport({
     host: 'smtp.msndr.net',
     port: 465,
@@ -29,7 +37,7 @@ app.post('/api/send-documents', upload.single('archive'), async (req, res) => {
         const { clientName, clientEmail, timestamp } = req.body;
         const archivePath = req.file.path;
 
-        console.log("get mail")
+        console.log("Получен запрос на отправку документов");
 
         // Настройка email
         const mailOptions = {
@@ -133,7 +141,16 @@ app.post('/api/send-sms', async (req, res) => {
     }
 });
 
-const PORT = 1488;
-app.listen(PORT, () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
+// Добавляем health-check endpoint
+app.get('/health', (req, res) => {
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Создаем HTTPS сервер
+const httpsPort = 1488;
+const httpsServer = https.createServer(sslOptions, app);
+
+
+httpsServer.listen(httpsPort, () => {
+    console.log(`HTTPS сервер запущен на порту ${httpsPort}`);
 });
