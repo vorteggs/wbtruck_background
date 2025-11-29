@@ -29,6 +29,8 @@ app.post('/api/send-documents', upload.single('archive'), async (req, res) => {
         const { clientName, clientEmail, timestamp } = req.body;
         const archivePath = req.file.path;
 
+        console.log("get mail")
+
         // Настройка email
         const mailOptions = {
             from: 'info@intech.insure',
