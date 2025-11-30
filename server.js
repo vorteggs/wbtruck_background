@@ -4,21 +4,21 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
-const https = require('https');
-const http = require('http');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Middleware - разрешаем CORS для Beget
+app.use(cors({
+    origin: [
+        'https://insuranceclaim.ru',
+        'https://www.insuranceclaim.ru'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST']
+}));
 
-// Загрузка SSL сертификатов
-const sslOptions = {
-    key: fs.readFileSync(path.join(__dirname, 'ssl', 'server.key')),
-    cert: fs.readFileSync(path.join(__dirname, 'ssl', 'server.cert'))
-};
+app.use(express.json());
 
 // Настройка почтового транспорта для Яндекс
 const transporter = nodemailer.createTransport({
@@ -37,7 +37,7 @@ app.post('/api/send-documents', upload.single('archive'), async (req, res) => {
         const { clientName, clientEmail, timestamp } = req.body;
         const archivePath = req.file.path;
 
-        console.log("Получен запрос на отправку документов");
+        console.log("Получен запрос на отправку документов от:", clientName);
 
         // Настройка email
         const mailOptions = {
@@ -47,6 +47,7 @@ app.post('/api/send-documents', upload.single('archive'), async (req, res) => {
             html: `
         <h2>Новое страховое заявление</h2>
         <p><strong>Клиент:</strong> ${clientName}</p>
+        <p><strong>Email:</strong> ${clientEmail || 'не указан'}</p>
         <p><strong>Дата отправки:</strong> ${new Date(timestamp).toLocaleString('ru-RU')}</p>
         <p>В приложении находятся документы:</p>
         <ul>
@@ -67,6 +68,8 @@ app.post('/api/send-documents', upload.single('archive'), async (req, res) => {
 
         // Удаляем временный файл
         fs.unlinkSync(archivePath);
+
+        console.log("Документы успешно отправлены для:", clientName);
 
         res.json({
             success: true,
@@ -93,6 +96,8 @@ app.post('/api/send-sms', async (req, res) => {
                 error: 'Не указан номер телефона'
             });
         }
+
+        console.log("Отправка SMS на номер:", phoneNumber);
 
         // Очищаем номер от нецифровых символов
         const cleanNumber = (phone) => phone.replace(/\D/g, '');
@@ -126,6 +131,8 @@ app.post('/api/send-sms', async (req, res) => {
 
         const result = await response.json();
 
+        console.log("SMS успешно отправлено:", result);
+
         res.json({
             success: true,
             message: 'SMS отправлено успешно',
@@ -143,14 +150,16 @@ app.post('/api/send-sms', async (req, res) => {
 
 // Добавляем health-check endpoint
 app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        server: 'Reg.ru API Server'
+    });
 });
 
-// Создаем HTTPS сервер
-const httpsPort = 1488;
-const httpsServer = https.createServer(sslOptions, app);
-
-
-httpsServer.listen(httpsPort, () => {
-    console.log(`HTTPS сервер запущен на порту ${httpsPort}`);
+// Запускаем HTTP сервер на порту 1488
+const PORT = 1488;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`HTTP сервер запущен на порту ${PORT}`);
+    console.log(`Health check: http://83.166.245.96:${PORT}/health`);
 });
